@@ -90,40 +90,11 @@ unsigned char ip_data[IP_DATA_SIZE]; // variable length data
 
 
 	public boolean Send(byte[] input, int length) {
+	
+		this.GetUnderLayer().set_type((byte) 0x00); // ip 0x0800 
 		
-		if((input[2]==(byte)0x20 && input[3]==(byte)0x80) || (input[2]==(byte)0x20 && input[3]==(byte)0x90) ) {
-			
-			byte[] bytes = ObjToByte(m_sHeader,input,length);
-			this.GetUnderLayer().Send(bytes, length + 20);
-			return true;
-			
-		}
-		else if(input[2]==(byte)0x20 && input[3]==(byte)0x70){
-			byte[] opcode = new byte[2];
-			opcode[0] = (byte)0x00;
-			opcode[1] = (byte)0x04;
-			
-			byte[] macAdd = new byte[6];
-			System.arraycopy(input, 24, macAdd, 0, 6); 
-			byte[] bytes = ObjToByte(m_sHeader, input, length);
-
-						
-			((ARPLayer)this.GetUnderLayer()).Send(m_sHeader.ip_src.addr,m_sHeader.ip_src.addr, macAdd, new byte[6], opcode); //arp 레이어 구현 필요
-
-			return true;
-			
-		}
-		
-		else {
-			byte[] opcode = new byte[2];
-			opcode[0] = (byte)0x00;
-			opcode[1] = (byte)0x01;
-			byte[] bytes = ObjToByte(m_sHeader, input, length);
-
-			((ARPLayer)this.GetUnderLayer()).Send(m_sHeader.ip_src.addr,m_sHeader.ip_dst.addr, new byte[6], new byte[6], opcode); //arp 레이어 구현 필요
-
-			return true;
-		}
+		//Ethernet => public boolean Send(byte[] input, int length)
+		this.GetUnderLayer(1).send(input, input.length); // Ethernet 데이터 send
 	}
 
 	
