@@ -91,8 +91,7 @@ unsigned char ip_data[IP_DATA_SIZE]; // variable length data
 
 	public boolean Send(byte[] input, int length) {
 	
-		this.GetUnderLayer().set_type((byte) 0x00); // ip 0x0800 
-		
+		this.GetUnderLayer(1).set_type((byte) 0x00); // ip 0x0800 
 		//Ethernet => public boolean Send(byte[] input, int length)
 		this.GetUnderLayer(1).send(input, input.length); // Ethernet 데이터 send
 	}
