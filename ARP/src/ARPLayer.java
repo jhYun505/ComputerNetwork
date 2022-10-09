@@ -169,7 +169,32 @@ public class ARPLayer implements BaseLayer{
 
     // Receive 함수
     public boolean Receive(byte[] input) {
+	byte[] request = new byte[28];
+        System.arraycopy(input, 0, request, 0, input.length);
 
+        //source mac
+        byte[] srcMacAdd = new byte[6];
+        System.arraycopy(input, 8, srcMacAdd, 0, 6);
+
+        //source ip
+        byte[] srcIpAdd = new byte[4];
+        System.arraycopy(input, 14, srcIpAdd, 0, 4);
+
+        //destination ip
+        byte[] dstIpAdd = new byte[4];
+        System.arraycopy(input, 24, dstIpAdd, 0, 4);
+
+        if(input[7] == 0x01) {
+            if(IsInArpCacheTable(srcIpAdd)) {
+                UpdateARPCache(srcIpAdd, srcMacAdd, true);
+            }
+            else {
+                AddARPCache(srcMacAdd, srcMacAdd, true);
+            }
+
+            if(IsMyIP(dstIpAdd) || IsInProxyTable(dstIpAdd)) {
+                ReplySend(request);
+            }
         
 
         return true;
