@@ -58,21 +58,9 @@ public class NILayer implements BaseLayer {
 			return;
 		}
 	}
-
-	// MAC Address를 받아오는 함수
-	public byte[] getMACAddress() {
-		byte[] mac_addr = new byte[6];
-		try {
-			mac_addr = m_pAdapterList.get(0).getHardwareAddress();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		return mac_addr;
-	}
+	
 
 	public boolean Send(byte[] input, int length) {
-		
 		ByteBuffer buf = ByteBuffer.wrap(input);
 		if (m_AdapterObject.sendPacket(buf) != Pcap.OK) {
 			System.err.println(m_AdapterObject.getErr());

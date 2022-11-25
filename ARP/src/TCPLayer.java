@@ -49,6 +49,7 @@ unsigned char tcp_data[ TCP_DATA_SIZE ]; // data part
 			this.tcp_ack = new byte[4];
 			this.tcp_offset = (byte) 0x00;
 			this.tcp_flag = (byte) 0x00;
+			this.tcp_window = new byte[2];
 			this.tcp_cksum = new byte[2];
 			this.tcp_urgptr = new byte[2];
 			this.Padding = new byte[4];
@@ -65,8 +66,13 @@ unsigned char tcp_data[ TCP_DATA_SIZE ]; // data part
 		
 	}
 
-
+	// Header를 Byte화 해서 하위 Layer로 전달한다(IP Layer)
 	public boolean Send(byte[] input, int length) {
+		// TCP Layer의 경우 지나가기만 하지 정해진 규칙(port 번호 등)이 없으므로 그냥 default 0으 값이 채워진 HEADER전달합니다.
+		// 현재는 ARP만 구현되어 있으므로 tcp_flag도 따로 설정하지 않겠습니다.
+		byte[] output = ObjToByte(m_sHeader, input, length);
+		// 하위 Layer인 IP Layer로 전달함.
+		((IPLayer)this.GetUnderLayer()).Send(output, output.length);
 	
 
 		return false;
@@ -75,8 +81,33 @@ unsigned char tcp_data[ TCP_DATA_SIZE ]; // data part
 	
 
 	public boolean Receive(byte[] input) {
-		
+		// ARP만 구현해서 이 부분은 구현하지 않았습니다.
 		return true;
+	}
+	
+	public byte[] ObjToByte(_TCP_HEADER header, byte[] input, int length) {
+		byte[] buf = new byte[24 + length];
+		//TO-DO : 객체 -> byte 바꾸는 배열 필요
+		buf[0] = header.tcp_sport.addr[0];
+		buf[1] = header.tcp_sport.addr[1];
+		buf[2] = header.tcp_dport.addr[0];
+		buf[3] = header.tcp_dport.addr[1];
+		System.arraycopy(header.tcp_seq, 0, buf, 4, 4);
+		System.arraycopy(header.tcp_ack, 0, buf, 8, 4);
+		buf[12] = header.tcp_offset;
+		buf[13] = header.tcp_flag;
+		buf[14] = header.tcp_window[0];
+		buf[15] = header.tcp_window[1];
+		buf[16] = header.tcp_cksum[0];
+		buf[17] = header.tcp_cksum[1];
+		buf[18] = header.tcp_urgptr[0];
+		buf[19] = header.tcp_urgptr[1];
+		System.arraycopy(header.Padding, 0, buf, 20, 4);
+		for(int i = 0; i < length ; i++) {
+			buf[23 + i] = input[i];
+		}
+
+		return buf;
 	}
 
 	@Override
@@ -118,4 +149,5 @@ unsigned char tcp_data[ TCP_DATA_SIZE ]; // data part
 		this.SetUpperLayer(pUULayer);
 		pUULayer.SetUnderLayer(this);
 	}
+
 }

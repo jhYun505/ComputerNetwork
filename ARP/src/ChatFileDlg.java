@@ -5,6 +5,8 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,11 +35,11 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 
 	JTextArea ChattingArea;
 	JTextArea srcMacAddress;
-	JTextArea dstMacAddress;
+	JTextArea srcIPAddress;
 
 	JLabel lblSelectNic;
 	JLabel lblsrc;
-	JLabel lbldst;
+	JLabel lblsrcIP;
 
 	JButton Setting_Button;
 	JButton File_select_Button;
@@ -51,10 +53,17 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 
 	public static void main(String[] args) {
 		m_LayerMgr.AddLayer(new NILayer("NI"));
-		
+		m_LayerMgr.AddLayer(new EthernetLayer("ETHERNET"));
+		m_LayerMgr.AddLayer(new ARPLayer("ARP"));
+		m_LayerMgr.AddLayer(new IPLayer("IP"));
+		m_LayerMgr.AddLayer(new TCPLayer("TCP"));
+		m_LayerMgr.AddLayer(new ChatAppLayer("CHAT"));
 		m_LayerMgr.AddLayer(new ChatFileDlg("GUI"));
-
-		//m_LayerMgr.ConnectLayers( );
+		
+		m_LayerMgr.ConnectLayers("NI ( *ETHERNET ( +IP ( *TCP ( *CHAT ( *GUI ) ) ) ) )"); 
+		
+		m_LayerMgr.GetLayer("IP").SetUnderLayer(m_LayerMgr.GetLayer("ARP"));
+		m_LayerMgr.GetLayer("ETHERNET").SetUpperUnderLayer(m_LayerMgr.GetLayer("ARP"));
 	}
 
 	public ChatFileDlg(String pName) {
@@ -62,7 +71,7 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 		pLayerName = pName;
 		setTitle("Chatting & File Transfer");
 
-		setBounds(250, 250, 580, 400);
+		setBounds(250, 250, 580, 529);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
 		contentPane = this.getContentPane();
@@ -73,7 +82,7 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 
 		ChattingArea = new JTextArea();
 		ChattingArea.setEditable(false);
-		ChattingArea.setBounds(12, 13, 359, 226);
+		ChattingArea.setBounds(12, 13, 359, 361);
 		pane.add(ChattingArea);// ä��
 
 		srcMacAddress = new JTextArea();
@@ -81,18 +90,18 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 		srcMacAddress.setBounds(383, 123, 170, 24);
 		pane.add(srcMacAddress);// ������ �ּ�
 
-		dstMacAddress = new JTextArea();
-		dstMacAddress.setBounds(383, 182, 170, 24);
-		pane.add(dstMacAddress);// �޴� ��� �ּ�
+		srcIPAddress = new JTextArea();
+		srcIPAddress.setBounds(383, 182, 170, 24);
+		pane.add(srcIPAddress);// �޴� ��� �ּ�
 
 		ChattingWrite = new JTextField();
-		ChattingWrite.setBounds(12, 249, 359, 20);// 249
+		ChattingWrite.setBounds(12, 386, 359, 20);// 249
 		pane.add(ChattingWrite);
 		ChattingWrite.setColumns(10);// ä�� ���� ��
 
 		FileDir_path = new JTextField();
 		FileDir_path.setEditable(false);
-		FileDir_path.setBounds(12, 280, 532, 20); // 280
+		FileDir_path.setBounds(14, 422, 532, 20); // 280
 		pane.add(FileDir_path);
 		FileDir_path.setColumns(10);// file ���
 
@@ -100,13 +109,13 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 		lblSelectNic.setBounds(383, 13, 170, 20);
 		pane.add(lblSelectNic);// ����
 
-		lblsrc = new JLabel("Source Mac Address");
+		lblsrc = new JLabel("My Mac Address");
 		lblsrc.setBounds(383, 98, 170, 20);
 		pane.add(lblsrc);
 
-		lbldst = new JLabel("Destination Mac Address");
-		lbldst.setBounds(383, 157, 170, 20);
-		pane.add(lbldst);
+		lblsrcIP = new JLabel("Source IP Address");
+		lblsrcIP.setBounds(383, 157, 170, 20);
+		pane.add(lblsrcIP);
 
 		Setting_Button = new JButton("Setting");// setting
 		Setting_Button.addActionListener(new ActionListener() {
@@ -114,15 +123,15 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 
 				if (Setting_Button.getText() == "Reset") {
 					srcMacAddress.setText("");
-					dstMacAddress.setText("");
+					srcIPAddress.setText("");
 					Setting_Button.setText("Setting");
-					dstMacAddress.setEditable(true);
+					srcIPAddress.setEditable(true);
 				} else {
 					byte[] srcAddress = new byte[6];
 					byte[] dstAddress = new byte[6];
 
 					String src = srcMacAddress.getText();
-					String dst = dstMacAddress.getText();
+					String dst = srcIPAddress.getText();
 
 					String[] byte_src = src.split("-");
 					for (int i = 0; i < 6; i++) {
@@ -140,12 +149,12 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 					((NILayer) m_LayerMgr.GetLayer("NI")).SetAdapterNumber(selected_index);
 
 					Setting_Button.setText("Reset");
-					dstMacAddress.setEditable(false);
+					srcIPAddress.setEditable(false);
 				}
 
 			}
 		});
-		Setting_Button.setBounds(418, 218, 87, 20);
+		Setting_Button.setBounds(385, 285, 161, 30);
 		pane.add(Setting_Button);// setting
 
 		File_select_Button = new JButton("File select");// ���� ����
@@ -166,7 +175,7 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 				}
 			}
 		});
-		File_select_Button.setBounds(75, 311, 161, 21);// ���� ������ġ 280
+		File_select_Button.setBounds(91, 449, 161, 21);// ���� ������ġ 280
 		pane.add(File_select_Button);
 
 		Chat_send_Button = new JButton("Send");
@@ -190,7 +199,7 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 				}
 			}
 		});
-		Chat_send_Button.setBounds(383, 249, 161, 21);
+		Chat_send_Button.setBounds(383, 386, 161, 21);
 		pane.add(Chat_send_Button);
 
 		NIC_select_Button = new JButton("Select");
@@ -213,6 +222,15 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
+				srcIPAddress.setText("");
+				String IPAddress = "";
+				try {
+					IPAddress = InetAddress.getLocalHost().getHostAddress();
+				} catch (UnknownHostException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				srcIPAddress.setText(IPAddress);
 			}
 		});
 
@@ -239,13 +257,31 @@ public class ChatFileDlg extends JFrame implements BaseLayer {
 				}
 			}
 		});
-		File_send_Button.setBounds(322, 311, 161, 23);
+		File_send_Button.setBounds(321, 448, 161, 23);
 		pane.add(File_send_Button);
 
 		comboBox = new JComboBox();
 
 		comboBox.setBounds(380, 38, 170, 24);
 		pane.add(comboBox);
+		
+		JLabel lbldstIP = new JLabel("Destination IP Address");
+		lbldstIP.setBounds(383, 219, 170, 20);
+		pane.add(lbldstIP);
+		
+		JTextArea dstIPAddress = new JTextArea();
+		dstIPAddress.setBounds(383, 239, 170, 24);
+		pane.add(dstIPAddress);
+		
+		JButton btnARPCache = new JButton("Cache Table");
+		btnARPCache.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+
+				
+			}
+		});
+		btnARPCache.setBounds(385, 329, 159, 30);
+		pane.add(btnARPCache);
 
 		setVisible(true);
 

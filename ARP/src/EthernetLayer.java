@@ -35,7 +35,8 @@ public class EthernetLayer implements BaseLayer {
 			this.enet_dstaddr = new _ETHERNET_ADDR();
 			this.enet_srcaddr = new _ETHERNET_ADDR();
 			this.enet_type = new byte[2];
-			this.enet_type[0] = (byte) 0x08; // 0x0800
+			this.enet_type[0] = (byte) 0x08; // 0x08??
+			this.enet_type[1] = (byte) 0x06;	// 0x0806
 			this.enet_data = null;
 		}
 	}
@@ -46,10 +47,16 @@ public class EthernetLayer implements BaseLayer {
 		m_sHeader.enet_data[1] = (byte)type;
 	}
 	public void set_dstaddr(byte[] dst){  // 목적지 저장
-	m_sHeader.enet_dstaddr =  dst;
+		//m_sHeader.enet_dstaddr.addr =  dst;
+		for(int i = 0 ; i < 6 ; i++){
+			m_sHeader.enet_dstaddr.addr[i] =  dst[i];
+		}
 	}
 	public void set_srcaddr(byte[] src){  // 주소 저장
-		m_sHeader.enet_srcaddr =  src;
+		for(int i = 0; i < 6 ; i++) {
+			m_sHeader.enet_srcaddr.addr[i] =  src[i];
+		}
+		//m_sHeader.enet_srcaddr.addr =  src;
 	}
 	public  byte[] get_dst(){  //dst return
 		return m_sHeader.enet_dstaddr.addr;
@@ -66,24 +73,12 @@ public class EthernetLayer implements BaseLayer {
 	}
 	public byte[] ObjToByte(_ETHERNET_HEADER Header, byte[] input, int length) {
 		byte[] buf = new byte[length + 14];
-
-		buf[0] = Header.enet_dstaddr.addr[0];
-		buf[1] = Header.enet_dstaddr.addr[1];
-		buf[2] = Header.enet_dstaddr.addr[2];
-		buf[3] = Header.enet_dstaddr.addr[3];
-		buf[4] = Header.enet_dstaddr.addr[4];
-		buf[5] = Header.enet_dstaddr.addr[5];
-
-		buf[6] = Header.enet_srcaddr.addr[0];
-		buf[7] = Header.enet_srcaddr.addr[1];
-		buf[8] = Header.enet_srcaddr.addr[2];
-		buf[9] = Header.enet_srcaddr.addr[3];
-		buf[10] = Header.enet_srcaddr.addr[4];
-		buf[11] = Header.enet_srcaddr.addr[5];
-
+		for (int i = 0; i < 6; i++) {
+			buf[i] = Header.enet_dstaddr.addr[i];
+			buf[i + 6] = Header.enet_srcaddr.addr[i];
+		}
 		buf[12] = Header.enet_type[0];
 		buf[13] = Header.enet_type[1];
-
 		for (int i = 0; i < length; i++)
 			buf[14 + i] = input[i];
 
@@ -91,31 +86,45 @@ public class EthernetLayer implements BaseLayer {
 	}
 
 	public boolean Send(byte[] input, int length) {
-		//상위 계층의 종류에 따라 헤더에 상위 프로토콜 형태 저장 후 물리적 계층으로 전달 
+		byte[] sender = m_sHeader.enet_srcaddr.addr;
+		System.out.println("Sender 주소 : ");
+		for(int i = 0; i <sender.length ; i++) {
+			System.out.print(Integer.toHexString(sender[i]) + ":");
+		}
+		System.out.println();
 		
+		byte[] target = m_sHeader.enet_dstaddr.addr;
+		System.out.println("Receiver 주소 : ");
+		for(int i = 0; i <target.length ; i++) {
+			System.out.print(Integer.toHexString(target[i]) + " ");
+		}
+		System.out.println("");		
+		//상위 계층의 종류에 따라 헤더에 상위 프로토콜 형태 저장 후 물리적 계층으로 전달 
+		m_sHeader.enet_type[0] = (byte) 0x08;
+		m_sHeader.enet_type[1] = (byte) 0x06;
 		byte[] bytes = ObjToByte(m_sHeader, input, length);
-		this.GetUnderLayer().send(bytes, length + 14);
+		((NILayer)this.GetUnderLayer()).Send(bytes, length + 14);
 		return false;
+
 	}
 
 	
 
 	public byte[] RemoveEtherHeader(byte[] input, int length) {
 		byte[] data = new byte[length - 14];
-		for (int i = 0; i < length - 14; i++)
-			data[i] = input[14 + i];
+		System.arraycopy(input, 14, data, 0, data.length);
 		return data;
 	}
 
 	public boolean Receive(byte[] input) {
 
-		if((IsItMine(input)|| IsItBroadcast(input)) && input[12] == (byte) 0x08  &&! IsItMyPacket(input)){// broadcast이거나,  목적지가 나일시 
-				byte[] datas = RemoveEtherHeader(input, input.length);
-				if(input[13] == (byte) 0x00) // IP 0x08 [00]
-					 this.GetUpperLayer(1).Receive(datas);
-				else if(input[13] == (byte) 0x06) // ARP 0x08 [06]
-					this.GetUpperLayer(0).receive(datas);
-				else return false;
+		if(!IsItMyPacket(input) && (IsItMine(input)|| IsItBroadcast(input)) ){// broadcast이거나,  목적지가 나일시 
+			byte[] datas = RemoveEtherHeader(input, input.length);
+			if(input[12] == (byte)0x08 && input[13] == (byte) 0x06){ // ARP 0x08 [06]
+				System.out.println(this.GetUpperLayer(1).GetLayerName());
+				((ARPLayer)this.GetUpperLayer(1)).Receive(datas);
+			}
+			else return false;
 		}else{ // 
 			return false;
 		}
@@ -200,4 +209,6 @@ public class EthernetLayer implements BaseLayer {
 		}
 		return true;
 	}
+	
+
 }
