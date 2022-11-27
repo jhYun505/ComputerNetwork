@@ -14,7 +14,10 @@ public class ARPLayer implements BaseLayer{
     public BaseLayer p_UnderLayer = null;
     public ArrayList<BaseLayer> p_aUpperLayer = new ArrayList<BaseLayer>();
     public Hashtable<String,Timer> timerList = new Hashtable<>();
-    
+
+    public String interfaceName;
+    // TODO Get interfaceName
+
     byte[] BROADCAST = broadcast();
 
     // GUI Layer 변수
@@ -156,15 +159,21 @@ public class ARPLayer implements BaseLayer{
 		public void setStatus(boolean status) {
 			this.status = status;
 		}
-		
+
+		public void setInterfaceName(String interfaceName) { this.interfaceName = interfaceName; }
+
+		public String getInterfaceName() { return interfaceName; }
+
 		byte[] ipAddr;
     	byte[] macAddr;
     	boolean status;				// complete == true, incomplete == false
-    	
-    	public _ARP_Cache(byte[] ipAddr, byte[] macAddr, boolean status) {
+    	String interfaceName;
+
+    	public _ARP_Cache(byte[] ipAddr, byte[] macAddr, boolean status, String interfaceName) {
     		this.ipAddr = ipAddr;
     		this.macAddr = macAddr;
     		this.status = status;
+		this.interfaceName = interfaceName;
     	}
     }
     
@@ -201,7 +210,7 @@ public class ARPLayer implements BaseLayer{
 	    		System.out.println("ARP Cache Table에 없는 IP주소로 전송 시작");
 	    		((EthernetLayer)this.GetUnderLayer()).set_dstaddr(BROADCAST);	//Broadcast로 목적지 설정
 	    		byte[] TargetMac = new byte[6];
-	    		_ARP_Cache cache = new _ARP_Cache(dstIPAddress, TargetMac, false);
+	    		_ARP_Cache cache = new _ARP_Cache(dstIPAddress, TargetMac, false, interfaceName);
 	    		ArpCacheTable.add(cache);
 	    		// 모르는 주소이므로 3분으로 타이머 설정
 	    		Timer timer = this.setTimeOut(dstIPAddress, 3 * 60 * 1000);
@@ -277,7 +286,7 @@ public class ARPLayer implements BaseLayer{
 	    		ReplySend(input);
 	    	}
     	}
-    	UpdateARPCache(SenderIP, SenderMac, true);
+    	UpdateARPCache(SenderIP, SenderMac, true, interfaceName);
     	GUI_LAYER.GetArpTable();	// ARP Table 업데이트
 
 		return true;
@@ -380,8 +389,8 @@ public class ARPLayer implements BaseLayer{
     }
 
     // ARP Cache Table 추가하는 함수
-    public boolean AddARPCache(byte[] IPAddr, byte[] MACAddr, boolean status) {
-        _ARP_Cache newArpCache = new _ARP_Cache(IPAddr, MACAddr, status);
+    public boolean AddARPCache(byte[] IPAddr, byte[] MACAddr, boolean status, String interfaceName) {
+        _ARP_Cache newArpCache = new _ARP_Cache(IPAddr, MACAddr, status, interfaceName);
         ArpCacheTable.add(newArpCache);
         return true;
     }
@@ -401,15 +410,16 @@ public class ARPLayer implements BaseLayer{
         return false;
     }
     // ARP Cache Table 업데이트 하는 함수
-    public boolean UpdateARPCache(byte[] IPAddr, byte[] MACAddr, boolean status) {
+    public boolean UpdateARPCache(byte[] IPAddr, byte[] MACAddr, boolean status, String interfaceName) {
         // iterator로 ArrayList를 순회
         int idx = IsInArpCacheTable(IPAddr);
         if(idx >= 0){
 		    ArpCacheTable.get(idx).setIpAddr(IPAddr);
 		    ArpCacheTable.get(idx).setMacAddr(MACAddr);
 		    ArpCacheTable.get(idx).setStatus(status);
+		    AroCacheTable.get(idx).setInterfaceName(interfaceName);
         } else {
-        	ArpCacheTable.add(new _ARP_Cache(IPAddr, MACAddr, status));
+        	ArpCacheTable.add(new _ARP_Cache(IPAddr, MACAddr, status, interfaceName));
         }
         
         return false;
