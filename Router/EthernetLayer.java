@@ -123,8 +123,11 @@ public class EthernetLayer implements BaseLayer {
 			if(input[12] == (byte)0x08 && input[13] == (byte) 0x06){ // ARP 0x08 [06]
 				System.out.println(this.GetUpperLayer(1).GetLayerName());
 				((ARPLayer)this.GetUpperLayer(1)).Receive(datas);
+			}else {
+				//IPLayer로 올려보냅니다.
+				System.out.println("IPLayer로 패킷 전달함");
+				((IPLayer)this.GetUpperLayer(0)).Receive(datas);
 			}
-			else return false;
 		}else{ // 
 			return false;
 		}

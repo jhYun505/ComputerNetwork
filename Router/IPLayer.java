@@ -5,6 +5,11 @@ public class IPLayer implements BaseLayer {
 	public String pLayerName = null;
 	public BaseLayer p_UnderLayer = null;
 	public ArrayList<BaseLayer> p_aUpperLayer = new ArrayList<BaseLayer>();
+	public RoutingTable RT_Table;
+	
+	public void setRoutingTable(RoutingTable table) {
+		this.RT_Table = table;
+	}
 
 	private class _IP_ADDR {
 		private byte[] addr = new byte[4];
@@ -94,12 +99,24 @@ public class IPLayer implements BaseLayer {
 
 		return false;
 	}
-
+	
+	// 추가한 함수
+	// input message의 dstIP 주소랑 실제로 보내야 하는 IP 주소랑 다를 때
+	public boolean Send(byte[] input, int length, byte[] dstIP) {
+		((ARPLayer)this.GetUnderLayer()).arp_header.setDstIPAddr(dstIP);
+		((ARPLayer)this.GetUnderLayer()).Send(input, input.length);
+		return false;
+	}
 	
 
 	public boolean Receive(byte[] input) {
 		
 		return true;
+	}
+	
+	public boolean receive(byte[] input) {
+		System.out.println("IP Layer에서 메세지를 받았습니다. 라우팅 시작합니다");
+		return RT_Table.routing(input);
 	}
 	
 	public byte[] ObjToByte(_IP_HEADER header, byte[] input, int length) {

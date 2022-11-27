@@ -1,9 +1,13 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 
 
 public class RoutingTable {
 	
 	public ArrayList<_ROUTING_ENTRY_> routingTable = new ArrayList<>();
+	
+	public IPLayer[] ipArr = new IPLayer[2];
+	public RouterDlg GUI;
 	
 	class _ROUTING_ENTRY_{
 		
@@ -60,6 +64,15 @@ public class RoutingTable {
 		}
 	}
 	
+	public void setGUI(RouterDlg DlgLayer){
+		this.GUI = DlgLayer;
+	}
+	
+	public void setIPLayer(IPLayer layer1, IPLayer layer2) {
+		this.ipArr[0] = layer1;
+		this.ipArr[1] = layer2;
+	}
+	
 	// Routing Table에 Entry를 추가하는 함수
 	public void addRoutingEntry(byte[] dstIP, byte[] netmask, byte[] gateway, String flag, String inter, int metric){
 		_ROUTING_ENTRY_ entry = new _ROUTING_ENTRY_();		//Entry 생성
@@ -70,19 +83,73 @@ public class RoutingTable {
 	// index를 이용하여 Table에서 Entry찾아서 삭제
 	public boolean deleteRoutingEntry(int index){
 		// Table 범위 안에 들어가는 경우
-		if(index >= 0 && index < routingTable.size()-1){
+		if(index >= 0 && index < routingTable.size()){
 			routingTable.remove(index);
 			return true;
 		}
 		return false;
 	}
 	
-	// TODO: Routing Table에서 Masking하는 함수
-	
 	// TODO: Routing Table에 있는지 확인하는 함수
-	
 
+	public _ROUTING_ENTRY_ findMatchingEntry(byte[] dstIP) {
+		for (int i = 0; i < routingTable.size(); i++) {
+			// current entry object
+			_ROUTING_ENTRY_ currentEntry = routingTable.get(i);
+
+			byte[] subnetMask = currentEntry.getRT_NETMASK();
+			byte[] maskingResult = maskingDstIP(dstIP, subnetMask);
+
+			// matching success
+			if (Arrays.equals(currentEntry.getRT_DEST_IP(), maskingResult))
+				return currentEntry;
+		}
+
+		return null;
+	}
+
+	// masking dstIP for subnetMask
+	public byte[] maskingDstIP(byte[] dstIP, byte[] subnetMask) {
+		byte[] maskingResult = new byte[4];
+		for (int i = 0; i < 4; i++) {
+			maskingResult[i] = (byte) (dstIP[i] & subnetMask[i]);
+		}
+		
+		return maskingResult;
+	}
 	
+	// Routing 과정 : input -> 올라온 메세지
+	public boolean routing(byte[] input){
+		// 원래의 목적지 IP 주소
+		byte[] originDstIP = Arrays.copyOfRange(input, 16, 20);
+		// 지금 보내야 하는 IP 주소
+		byte[] nowDstIP = Arrays.copyOf(originDstIP, 4);		// ARP Cache Table에서 찾아야 하는 주소
+		// Router Table에서 IP 검색해서 어디로 갈지 정함
+		_ROUTING_ENTRY_ matched = findMatchingEntry(originDstIP);
+		
+		// Matching 되는게 없으면? -> 근데 Default Gateway(Masking 0.0.0.0)통해서 갈 것 같기는 합니다
+		if (matched == null) return false;
+		
+		// U(Up) -> 라우터의 동작 여부(U이면 동작함)
+		if(matched.getRT_FLAG().equals("U")){
+			System.out.println("===== Router 동작 중 =====");
+		}else if (matched.getRT_FLAG().equals("UG")) {
+			// Gate MAC 주소로 전송해야함
+			// 검색해야 하는 IP 주소는 Gateway의 IP 주소
+			nowDstIP = Arrays.copyOf(matched.getRT_GATEWAY(), 4);
+			
+		} else if (matched.getRT_FLAG().equals("UH")) {
+			// 직접 연결된 Host인경우
+			nowDstIP = Arrays.copyOf(originDstIP, 4);
+		}
+		// GUI의 PortNumber번의 네트워크쪽으로 input 패킷을 전달함.
+		// 타겟 주소는 nowDstIP의 MAC 주소여야함.
+		int portNumber = Integer.parseInt(matched.getRT_INTERFACE().split(" ")[1]);
+		// IPLayer Send 함수에 추가?
+		return ipArr[portNumber].Send(input, input.length, nowDstIP);
+		
+	}
+
 	
 
 }

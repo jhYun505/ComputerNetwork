@@ -89,12 +89,19 @@ public class RouterDlg extends JFrame implements BaseLayer{
 		}
 		
 		((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET1")).set_srcaddr(MacAddr1);
-		((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET2")).set_srcaddr(MacAddr1);
+		((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET2")).set_srcaddr(MacAddr2);
+		System.out.println("Ethernet Layer의 MacAddr 각각 추가");
 		// Routing Table에 두 IP Layer를 추가함
 		routingTable.setIPLayer(((IPLayer)m_LayerMgr.GetLayer("IP1")), ((IPLayer)m_LayerMgr.GetLayer("IP2")));
+		System.out.println("Routing Table에 IPLayer 저장");
+		// GUI를 ARP Layer로 할당
+		((ARPLayer)m_LayerMgr.GetLayer("ARP1")).SetGUI((RouterDlg)m_LayerMgr.GetLayer("GUI"));
+		((ARPLayer)m_LayerMgr.GetLayer("ARP2")).SetGUI((RouterDlg)m_LayerMgr.GetLayer("GUI"));
+		// 각각의 ARP Layer에 InterfaceNumber 저장
+		((ARPLayer)m_LayerMgr.GetLayer("ARP1")).setInterfaceNum(0);
+		((ARPLayer)m_LayerMgr.GetLayer("ARP2")).setInterfaceNum(1);
+
 		
-		((ARPLayer)m_LayerMgr.GetLayer("ARP1")).SetGUI(((RouterDlg)m_LayerMgr.GetLayer("GUI")));//Update를 위해 변수로 전달함.
-		((ARPLayer)m_LayerMgr.GetLayer("ARP2")).SetGUI(((RouterDlg)m_LayerMgr.GetLayer("GUI")));//Update를 위해 변수로 전달함.
 		
 		// TODO: ARPTable class 각 ARPLayer에 할당해줘야
     	
@@ -383,6 +390,7 @@ public class RouterDlg extends JFrame implements BaseLayer{
 					//TODO: GUI의 라우팅 테이블에 업데이트
 					StaticRouterModel.addRow(new Object[]{DestIP.getText(),NetMaskIP.getText(), gate, flag, inter, Integer.toString(metric)});
 					System.out.println("현재 Routing Table의 개수 : "+routingTable.routingTable.size());
+
 				}
 			});
 			btnAdd.setBounds(83, 271, 84, 27);
@@ -518,21 +526,23 @@ public class RouterDlg extends JFrame implements BaseLayer{
 
 	// GetArpTable : ARPLayer의 ARPCacheTable을 읽어오는 함수
 	public boolean GetArpTable() {
-		// AppLayer의 ARPCacheList 초기화
-		ARPCacheTable.removeAll();
+		// RouterDlg의 ARPCacheTable 초기화
+		for(int i = 0; i < ARPCacheModel.getRowCount(); i++) {
+			ARPCacheModel.removeRow(i);
+		}
 		Iterator<ARPLayer._ARP_Cache> iter = ARPLayer.ArpCacheTable.iterator();
 		while(iter.hasNext()) {
 			ARPLayer._ARP_Cache arpCache = iter.next();
-			byte[] ipAddr = arpCache.ipAddr;
-			byte[] macAddr = arpCache.macAddr;
+			byte[] ipAddr = arpCache.getIpAddr();
+			byte[] macAddr = arpCache.getMacAddr();
 			String status = arpCache.status == true ? "Complete" : "Incomplete";	//status에 따라 다르게 나타나도록
+			// InterfaceName
+			String interfaceName = "Port " +arpCache.getInterNum();
 			String strMacAddr = "";
 			String strIPAddr = ipToString(ipAddr);
 			
 			// MAC 주소 알면 MAC 주소로, 모르면 ????????로 나타냄
 			strMacAddr = arpCache.status == true ? macToString(macAddr) : "?????????????";
-			//TODO : interfaceName 어떻게?
-			String interfaceName = "Port 1";
 			ARPCacheModel.addRow(new Object[]{strIPAddr,strMacAddr, interfaceName, status});
 			System.out.println("Table 갯수 : " + ARPLayer.ArpCacheTable.size());
 		}
