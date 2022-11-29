@@ -1,5 +1,4 @@
 import java.util.ArrayList;
-import java.util.Arrays;
 
 
 public class RoutingTable {
@@ -82,38 +81,8 @@ public class RoutingTable {
 	
 	// TODO: Routing Table에 있는지 확인하는 함수
 	
-	public _ROUTING_ENTRY_ checkTable(byte[] destination) {
-		
-		if(routingTable.size() < 1) return null;
-		
-		for(_ROUTING_ENTRY_ entry : routingTable) {
-			byte[] count = new byte[4];
-			byte[] result = new byte[4];
-			
-			//subnet mask 계산
-			for(int i = 0; i < 4; i++) {
-				if((entry.getRT_NETMASK()[i]&0xFF) == 255) 
-					count[i] += 8;
-				else {
-					int n = entry.getRT_NETMASK()[i]&0xFF;
-					while(n != 0) {
-						count[i] += n%2;
-						n /= 2;
-					}
-				}
-			}
-			//마스킹
-			for (int i = 0; i < 4; i++) {
-				result[i] = (byte) (destination[i] & count[i]);							
-					}
-			//테이블에 마스킹된 값이 존재하는지 확인
-			if(Arrays.equals(result, entry.getRT_DEST_IP())) {
-				return entry;
-				}
-				
-			}
-		
-		
-		return routingTable.get(routingTable.size() - 1);
-	}
+
+	
+	
+
 }
