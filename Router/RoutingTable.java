@@ -1,9 +1,13 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 
 
 public class RoutingTable {
 	
 	public ArrayList<_ROUTING_ENTRY_> routingTable = new ArrayList<>();
+	
+	public IPLayer[] ipArr = new IPLayer[2];
+	public RouterDlg GUI;
 	
 	class _ROUTING_ENTRY_{
 		
@@ -26,12 +30,12 @@ public class RoutingTable {
 		
 		public void setRoutingEntry(byte[] dstIP, byte[] netmask, byte[] gateway, String flag, String inter, int metric) {
 			
-			System.arraycopy(dstIP, 0, RT_DEST_IP, 0, 4);
-			System.arraycopy(netmask, 0, RT_NETMASK, 0, 4);
-			System.arraycopy(gateway, 0, RT_GATEWAY, 0, 4);
-			RT_FLAG = flag;
-			RT_INTERFACE = inter;
-			RT_METRIC = metric;
+			this.RT_DEST_IP = dstIP;
+			this.RT_NETMASK = netmask;
+			this.RT_GATEWAY = gateway;
+			this.RT_FLAG = flag;
+			this.RT_INTERFACE = inter;
+			this.RT_METRIC = metric;
 			
 		}
 
@@ -60,6 +64,15 @@ public class RoutingTable {
 		}
 	}
 	
+	public void setGUI(RouterDlg DlgLayer){
+		this.GUI = DlgLayer;
+	}
+	
+	public void setIPLayer(IPLayer layer1, IPLayer layer2) {
+		this.ipArr[0] = layer1;
+		this.ipArr[1] = layer2;
+	}
+	
 	// Routing Table에 Entry를 추가하는 함수
 	public void addRoutingEntry(byte[] dstIP, byte[] netmask, byte[] gateway, String flag, String inter, int metric){
 		_ROUTING_ENTRY_ entry = new _ROUTING_ENTRY_();		//Entry 생성
@@ -70,19 +83,53 @@ public class RoutingTable {
 	// index를 이용하여 Table에서 Entry찾아서 삭제
 	public boolean deleteRoutingEntry(int index){
 		// Table 범위 안에 들어가는 경우
-		if(index >= 0 && index < routingTable.size()-1){
+		if(index >= 0 && index < routingTable.size()){
 			routingTable.remove(index);
 			return true;
 		}
 		return false;
 	}
 	
-	// TODO: Routing Table에서 Masking하는 함수
-	
 	// TODO: Routing Table에 있는지 확인하는 함수
-	
+	public _ROUTING_ENTRY_ findMatchingEntry(byte[] dstIP) {
+		for (int i = 0; i < routingTable.size(); i++) {
+			// current entry object
+			_ROUTING_ENTRY_ currentEntry = routingTable.get(i);
 
+			byte[] subnetMask = currentEntry.getRT_NETMASK();
+			byte[] maskingResult = maskingDstIP(dstIP, subnetMask);
+
+			// matching success
+			if (Arrays.equals(currentEntry.getRT_DEST_IP(), maskingResult)){
+				return currentEntry;
+			}
+		}
+		return null;
+	}
+
+	// masking dstIP for subnetMask
+	public byte[] maskingDstIP(byte[] dstIP, byte[] subnetMask) {
+		byte[] maskingResult = new byte[4];
+		for (int i = 0; i < dstIP.length; i++) {
+			maskingResult[i] = (byte) (dstIP[i] & subnetMask[i]);
+		}
+		
+		return maskingResult;
+	}
 	
+	// Routing 과정 : input -> 올라온 메세지
+	public _ROUTING_ENTRY_ routing(byte[] dstIP){
+		// 원래의 목적지 IP 주소
+		byte[] originDstIP = dstIP;
+		// 지금 보내야 하는 IP 주소
+		byte[] nowDstIP = Arrays.copyOf(originDstIP, 4);		// ARP Cache Table에서 찾아야 하는 주소
+		// Matching 되는 IP 주소 보냄
+		return findMatchingEntry(originDstIP);
+		
+		// IPLayer에서 받아서 ip가지고 RouterLayer로 내려보낸다.
+		
+	}
+
 	
 
 }

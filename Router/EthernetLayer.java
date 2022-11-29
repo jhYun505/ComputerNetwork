@@ -5,6 +5,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class EthernetLayer implements BaseLayer {
 	public int nUpperLayerCount = 0;
@@ -12,70 +13,76 @@ public class EthernetLayer implements BaseLayer {
 	public BaseLayer p_UnderLayer = null;
 	public ArrayList<BaseLayer> p_aUpperLayer = new ArrayList<BaseLayer>();
 
-	private class _ETHERNET_ADDR {
-		private byte[] addr = new byte[6];
-
-		public _ETHERNET_ADDR() {
-			this.addr[0] = (byte) 0x00;
-			this.addr[1] = (byte) 0x00;
-			this.addr[2] = (byte) 0x00;
-			this.addr[3] = (byte) 0x00;
-			this.addr[4] = (byte) 0x00;
-			this.addr[5] = (byte) 0x00;
-		}
-	}
-
+	// UpperLayer 0번 : IP Layer 1번 : ARPLayer
 	private class _ETHERNET_HEADER {
-		_ETHERNET_ADDR enet_dstaddr;
-		_ETHERNET_ADDR enet_srcaddr;
-		byte[] enet_type;
+		byte[] enet_dstaddr;
+		byte[] enet_srcaddr;
+		byte[] enet_type = new byte[2];
 		byte[] enet_data;
 
 		public _ETHERNET_HEADER() {
-			this.enet_dstaddr = new _ETHERNET_ADDR();
-			this.enet_srcaddr = new _ETHERNET_ADDR();
-			this.enet_type = new byte[2];
+			this.enet_dstaddr = new byte[6];
+			this.enet_srcaddr = new byte[6];
 			this.enet_type[0] = (byte) 0x08; // 0x08??
-			this.enet_type[1] = (byte) 0x06;	// 0x0806
+			this.enet_type[1] = (byte) 0x00; //일단은 IP
 			this.enet_data = null;
 		}
+		public void set_type(byte type) {
+			this.enet_type = new byte[]{0x08, type};
+		}
+		public void set_dst(byte[] dstMac) {
+			for(int i = 0 ; i < 6 ; i++){
+				this.enet_dstaddr[i] = dstMac[i];
+			}
+		}
+		
+		public void set_src(byte[] srcMac) {
+			for(int i = 0 ; i < 6 ; i++){
+				this.enet_srcaddr[i] = srcMac[i];
+			}
+		}
+		public byte[] get_dst(){
+			return this.enet_dstaddr;
+		}
+		public byte[] get_src(){
+			return this.enet_srcaddr;
+		}
+		
 	}
 
 	_ETHERNET_HEADER m_sHeader = new _ETHERNET_HEADER();
+	
+
 
 	public void set_type(byte type){ // 타입저장
-		m_sHeader.enet_data[1] = (byte)type;
+		this.m_sHeader.set_type(type);
 	}
 	public void set_dstaddr(byte[] dst){  // 목적지 저장
 		//m_sHeader.enet_dstaddr.addr =  dst;
-		for(int i = 0 ; i < 6 ; i++){
-			m_sHeader.enet_dstaddr.addr[i] =  dst[i];
-		}
+		this.m_sHeader.set_dst(dst);
 	}
 	public void set_srcaddr(byte[] src){  // 주소 저장
-		for(int i = 0; i < 6 ; i++) {
-			m_sHeader.enet_srcaddr.addr[i] =  src[i];
-		}
+		this.m_sHeader.set_src(src);
 		//m_sHeader.enet_srcaddr.addr =  src;
 	}
 	public  byte[] get_dst(){  //dst return
-		return m_sHeader.enet_dstaddr.addr;
+		return this.m_sHeader.get_dst();
 	}
 	public  byte[] get_src(){  //src return
-		return m_sHeader.enet_srcaddr.addr;
+		return this.m_sHeader.get_src();
 	}
+	
 	
 	public EthernetLayer(String pName) {
 		// super(pName);
 		// TODO Auto-generated constructor stub
 		pLayerName = pName;
-		
 	}
 	public byte[] ObjToByte(_ETHERNET_HEADER Header, byte[] input, int length) {
 		byte[] buf = new byte[length + 14];
 		for (int i = 0; i < 6; i++) {
-			buf[i] = Header.enet_dstaddr.addr[i];
-			buf[i + 6] = Header.enet_srcaddr.addr[i];
+			buf[i] = Header.enet_dstaddr[i];
+			buf[i + 6] = Header.enet_srcaddr[i];
 		}
 		buf[12] = Header.enet_type[0];
 		buf[13] = Header.enet_type[1];
@@ -86,28 +93,11 @@ public class EthernetLayer implements BaseLayer {
 	}
 
 	public boolean Send(byte[] input, int length) {
-		byte[] sender = m_sHeader.enet_srcaddr.addr;
-		System.out.println("Sender 주소 : ");
-		for(int i = 0; i <sender.length ; i++) {
-			System.out.print(Integer.toHexString(sender[i]) + ":");
-		}
-		System.out.println();
-		
-		byte[] target = m_sHeader.enet_dstaddr.addr;
-		System.out.println("Receiver 주소 : ");
-		for(int i = 0; i <target.length ; i++) {
-			System.out.print(Integer.toHexString(target[i]) + " ");
-		}
-		System.out.println("");		
-		//상위 계층의 종류에 따라 헤더에 상위 프로토콜 형태 저장 후 물리적 계층으로 전달 
-		m_sHeader.enet_type[0] = (byte) 0x08;
-		m_sHeader.enet_type[1] = (byte) 0x06;
-		byte[] bytes = ObjToByte(m_sHeader, input, length);
-		((NILayer)this.GetUnderLayer()).Send(bytes, length + 14);
-		return false;
-
+		byte[] srcMac = this.m_sHeader.get_src();
+		byte[] msg = ObjToByte(m_sHeader, input, length);
+		return ((NILayer)this.GetUnderLayer()).Send(msg, msg.length);
 	}
-
+	
 	
 
 	public byte[] RemoveEtherHeader(byte[] input, int length) {
@@ -116,19 +106,20 @@ public class EthernetLayer implements BaseLayer {
 		return data;
 	}
 
-	public boolean Receive(byte[] input) {
-
+	public synchronized boolean Receive(byte[] input) {
 		if(!IsItMyPacket(input) && (IsItMine(input)|| IsItBroadcast(input)) ){// broadcast이거나,  목적지가 나일시 
 			byte[] datas = RemoveEtherHeader(input, input.length);
-			if(input[12] == (byte)0x08 && input[13] == (byte) 0x06){ // ARP 0x08 [06]
-				System.out.println(this.GetUpperLayer(1).GetLayerName());
-				((ARPLayer)this.GetUpperLayer(1)).Receive(datas);
+			if(input[12] == (byte)0x08){
+				if(input[13] == (byte)6){ // ARP 0x08 [06]
+					//ARPLayer로 전송함
+					return ((ARPLayer)this.GetUpperLayer(1)).Receive(datas);
+				}
+				else if(input[13] == (byte)0x00){
+					return ((IPLayer)this.GetUpperLayer(0)).Receive(datas);
+				}
+				
 			}
-			else return false;
-		}else{ // 
-			return false;
 		}
-		
 		return true;
 	}
 
@@ -180,8 +171,9 @@ public class EthernetLayer implements BaseLayer {
 	}
 
 	public boolean IsItMyPacket(byte[] input) {
+		byte[] myAddr = m_sHeader.get_src();
 		for (int i = 0; i < 6; i++) {
-			if (m_sHeader.enet_srcaddr.addr[i] == input[6 + i])
+			if (myAddr[i] == input[6 + i])
 				continue;
 			else
 				return false;
@@ -190,8 +182,9 @@ public class EthernetLayer implements BaseLayer {
 	}
 
 	public boolean IsItMine(byte[] input) {
+		byte[] myAddr = m_sHeader.get_src();
 		for (int i = 0; i < 6; i++) {
-			if (m_sHeader.enet_srcaddr.addr[i] == input[i])
+			if (myAddr[i] == input[i])
 				continue;
 			else {
 				return false;

@@ -35,26 +35,117 @@ public class RouterDlg extends JFrame implements BaseLayer{
     public BaseLayer p_UnderLayer = null;
     public ArrayList<BaseLayer> p_aUpperLayer = new ArrayList<BaseLayer>();
     public ArrayList<PcapIf> m_pAdapterList;
+    public DefaultTableModel StaticRouterModel, ARPCacheModel, ProxyARPModel;
 
     private static LayerManager m_LayerMgr = new LayerManager();
     public static RoutingTable routingTable;
+    public static ARPTable arpTable;
+    
+    public static NILayer[] niLayers = new NILayer[2];
+    public static EthernetLayer[] ethLayers = new EthernetLayer[2];
+    public static ARPLayer[] arpLayers = new ARPLayer[2];
+    public static IPLayer[] ipLayers = new IPLayer[2];
 
     public static void main(String[] args) {
-    	/*
-    	 * TODO:
-    	 * - Layer 생성
-    	 * - Layer 연결
-    	 */
-    	RouterDlg layer = new RouterDlg("GUI");
+    	
+    	// Table 설정
     	routingTable = new RoutingTable();
+    	arpTable = new ARPTable();
+    	// Layer 생성
+    	m_LayerMgr.AddLayer(new NILayer("NI1"));
+    	m_LayerMgr.AddLayer(new EthernetLayer("ETHERNET1"));
+    	m_LayerMgr.AddLayer(new IPLayer("IP1"));
+    	m_LayerMgr.AddLayer(new ARPLayer("ARP1"));
+    	
+    	m_LayerMgr.AddLayer(new NILayer("NI2"));
+    	m_LayerMgr.AddLayer(new EthernetLayer("ETHERNET2"));
+    	m_LayerMgr.AddLayer(new IPLayer("IP2"));
+    	m_LayerMgr.AddLayer(new ARPLayer("ARP2"));
+    	
+    	//GUI Layer 생성
+    	m_LayerMgr.AddLayer(new RouterDlg("GUI"));
+    	
+    	// Layer 연결 시작 IP랑 Ethernet 단방향, IP랑 ARP 단방향
+    	m_LayerMgr.ConnectLayers(" NI1 ( *ETHERNET1 ( +IP1 ( *GUI ) ) )");
+    	m_LayerMgr.GetLayer("IP1").SetUnderLayer((ARPLayer)m_LayerMgr.GetLayer("ARP1"));
+    	m_LayerMgr.GetLayer("ETHERNET1").SetUpperUnderLayer((ARPLayer)m_LayerMgr.GetLayer("ARP1"));
+    	
+    	m_LayerMgr.GetLayer("NI2").SetUpperUnderLayer((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET2"));
+    	m_LayerMgr.GetLayer("ETHERNET2").SetUpperLayer((IPLayer)m_LayerMgr.GetLayer("IP2"));
+    	m_LayerMgr.GetLayer("IP2").SetUpperUnderLayer((RouterDlg)m_LayerMgr.GetLayer("GUI"));
+    	m_LayerMgr.GetLayer("IP2").SetUnderLayer((ARPLayer)m_LayerMgr.GetLayer("ARP2"));
+    	m_LayerMgr.GetLayer("ETHERNET2").SetUpperUnderLayer((ARPLayer)m_LayerMgr.GetLayer("ARP2"));
+    	// Layer 연결 끝
+    	
+    	//IPLayer 설정
+    	((IPLayer)m_LayerMgr.GetLayer("IP1")).setOtherIP(((IPLayer)m_LayerMgr.GetLayer("IP2")));
+    	((IPLayer)m_LayerMgr.GetLayer("IP2")).setOtherIP(((IPLayer)m_LayerMgr.GetLayer("IP1")));
+    	((IPLayer)m_LayerMgr.GetLayer("IP1")).setRT_Table(routingTable);
+    	((IPLayer)m_LayerMgr.GetLayer("IP2")).setRT_Table(routingTable);
+    	
+    	// ARPLayer 설정
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP1")).SetGUI((RouterDlg)m_LayerMgr.GetLayer("GUI"));
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).SetGUI((RouterDlg)m_LayerMgr.GetLayer("GUI"));
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP1")).setARPTable(arpTable);
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).setARPTable(arpTable);
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP1")).setInterfaceNum(1);
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).setInterfaceNum(2);
 
+    	// NILayer Setting
+    	((NILayer)m_LayerMgr.GetLayer("NI1")).SetAdapterNumber(0);
+    	((NILayer)m_LayerMgr.GetLayer("NI2")).SetAdapterNumber(1);
+
+    	// 각 Layer들 Address Setting(src)
+    	//1.Ethernet 정보
+    	
+    	try {
+			((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET1")).set_srcaddr((((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).getHardwareAddress()));
+			System.out.println("Network interface0 Info:\n" + (((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).toString()));
+			((EthernetLayer)m_LayerMgr.GetLayer("ETHERNET2")).set_srcaddr((((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).getHardwareAddress()));
+			System.out.println("Network interface1 Info:\n" + (((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).toString()));
+			System.out.println("MAC1 ADDRESS : " + macToString((((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).getHardwareAddress())));
+			System.out.println("MAC2 ADDRESS : " + macToString((((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).getHardwareAddress())));
+    	} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	// 2. IPLayer 정보
+    	((IPLayer)m_LayerMgr.GetLayer("IP1")).set_srcIP((((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).getAddresses().get(0).getAddr().getData()));
+    	((IPLayer)m_LayerMgr.GetLayer("IP2")).set_srcIP((((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).getAddresses().get(0).getAddr().getData()));
+    	// 3. ARPLayer 정보
+    	try {
+        	((ARPLayer)m_LayerMgr.GetLayer("ARP1")).setSrcIP(((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).getAddresses().get(0).getAddr().getData());
+			((ARPLayer)m_LayerMgr.GetLayer("ARP1")).setSrcMac(((NILayer)m_LayerMgr.GetLayer("NI1")).m_pAdapterList.get(0).getHardwareAddress());
+	    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).setSrcIP(((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).getAddresses().get(0).getAddr().getData());
+	    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).setSrcMac(((NILayer)m_LayerMgr.GetLayer("NI2")).m_pAdapterList.get(1).getHardwareAddress());
+    	} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	// 입력하는 시간 필요
+    	Scanner sc = new Scanner(System.in);
+    	System.out.print("Routing Rable 입력을 마쳤다면 end를 입력해주세요 : ");
+    	while(true){
+    	// Routing Program 실행시 GARP사용하여 LAN의 Host들에게 자기 자신을 알려야함
+    		try {
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	    	if(sc.next().equals("end")){
+	    		break;
+	    	}
+    	}
+    	byte[] garp = new byte[1];
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP1")).GARPSend(garp);
+    	((ARPLayer)m_LayerMgr.GetLayer("ARP2")).GARPSend(garp);
 	}
 
 	private JPanel contentPanel;				// 전체 화면 JPanel
-    private JButton btnAllDelete;				// Basic ARP All ITem Delete Button
-    private JTable StaticRouterTable;
-    private JTable ARPCacheTable;
-    private JTable ProxyARPTable;
+	public JTable StaticRouterTable;
+    public JTable ARPCacheTable;
+    public JTable ProxyARPTable;
     private JPanel StaticRouterPane;
     private JPanel ARPCachePane;
     private JPanel ProxyPane;
@@ -71,7 +162,8 @@ public class RouterDlg extends JFrame implements BaseLayer{
     private JButton btnProxyDelete;
     private JDialog addRouterDlg;
     private JDialog proxyAddDlg;
-    public DefaultTableModel StaticRouterModel, ARPCacheModel, ProxyARPModel;
+
+
 
     
 
@@ -87,6 +179,10 @@ public class RouterDlg extends JFrame implements BaseLayer{
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		contentPanel.setLayout(null);
+		
+		/*
+		 *	Static Routing Table 시작 
+		 */
 		
 		StaticRouterPane = new JPanel();
 		StaticRouterPane.setBounds(14, 12, 615, 480);
@@ -104,15 +200,20 @@ public class RouterDlg extends JFrame implements BaseLayer{
 		StaticRouterPane.add(RouterScrollPane);
 		
 		StaticRouterTable = new JTable();
+		StaticRouterTable.setFont(new Font("Gulim", Font.PLAIN, 15));
+		StaticRouterTable.setShowVerticalLines(false);
+		StaticRouterTable.setShowGrid(false);
 		StaticRouterModel = new DefaultTableModel(
 				new Object[][] {
-						{"123.123.123,123","123.123.123,123","123.123.123.123","UP","1","Host1"}
 				},
 				new String[] {
 					"Destination", "Netmask", "Gateway", "Flag", "Interface", "Metric"
 				}
 			);
 		StaticRouterTable.setModel(StaticRouterModel);
+		StaticRouterTable.getColumnModel().getColumn(0).setPreferredWidth(139);
+		StaticRouterTable.getColumnModel().getColumn(1).setPreferredWidth(133);
+		StaticRouterTable.getColumnModel().getColumn(2).setPreferredWidth(126);
 		RouterScrollPane.setViewportView(StaticRouterTable);
 		
 		btnRouterAdd = new JButton("Add");
@@ -135,11 +236,16 @@ public class RouterDlg extends JFrame implements BaseLayer{
 					//remove selected row from the model
 					StaticRouterModel.removeRow(selectedIndex);
 					// TODO: Routing Table Class에서 해당 index 삭제하는 과정
+					routingTable.deleteRoutingEntry(selectedIndex);
 				}
 			}
 		});
 		btnRouterDelete.setBounds(345, 441, 105, 27);
 		StaticRouterPane.add(btnRouterDelete);
+		
+		/*
+		 * Static Routing Table 끝
+		 */
 		
 		ARPCachePane = new JPanel();
 		ARPCachePane.setBounds(643, 12, 466, 252);
@@ -168,6 +274,14 @@ public class RouterDlg extends JFrame implements BaseLayer{
 		ARPScrollPane.setViewportView(ARPCacheTable);
 		
 		btnARPDelete = new JButton("Delete");
+		btnARPDelete.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				int index = ARPCacheTable.getSelectedRow();
+				if(index >= 0) {
+					DeleteARP(index);
+				}
+			}
+		});
 		btnARPDelete.setBounds(181, 221, 105, 27);
 		ARPCachePane.add(btnARPDelete);
 		
@@ -210,10 +324,6 @@ public class RouterDlg extends JFrame implements BaseLayer{
 		btnProxyDelete = new JButton("Delete");
 		btnProxyDelete.setBounds(286, 182, 105, 27);
 		ProxyPane.add(btnProxyDelete);
-
-		
-		btnAllDelete = new JButton("All Detete");
-		btnAllDelete.setBounds(196, 298, 127, 42);
 		
 		setVisible(true);
 		
@@ -294,59 +404,61 @@ public class RouterDlg extends JFrame implements BaseLayer{
 			JButton btnAdd = new JButton("Add");
 			btnAdd.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent e) {
-					byte[] dstIP = StringToByte(DestIP.getText());
-					byte[] netmask = StringToByte(NetMaskIP.getText());
-					byte[] gateway = StringToByte(GatewayIP.getText());
-					String flag = getFlag();
-					String inter = getInterface();
+					byte[] dstIP = StringToIP(DestIP.getText());
+					
+					byte[] netmask = StringToIP(NetMaskIP.getText());
+					byte[] gateway = new byte[4];
+					if(!GatewayIP.getText().isEmpty()){
+						gateway = StringToIP(GatewayIP.getText());
+					}
+					String gate = "";
+					if(GatewayIP.getText().isEmpty()) gate = "*";
+					else gate = GatewayIP.getText();
+					String flag = getFlag(chckbxUp.isSelected(),chckbxGateway.isSelected(), chckbxHost.isSelected());
+					int index = NICList.getSelectedIndex();
+					String inter = "Interface " + (index+1);
 					int metric = getMetric();
 					//routingTable 클래스에 Entry 추가
 					routingTable.addRoutingEntry(dstIP, netmask, gateway, flag, inter, metric);
 					//TODO: GUI의 라우팅 테이블에 업데이트
+					StaticRouterModel.addRow(new Object[]{DestIP.getText(),NetMaskIP.getText(), gate, flag, inter, Integer.toString(metric)});
+
 				}
 			});
 			btnAdd.setBounds(83, 271, 84, 27);
 			AddRouterPane.add(btnAdd);
 			
 			JButton btnCancel = new JButton("Cancel");
+			btnCancel.addActionListener(new ActionListener(){
+				public void actionPerformed(ActionEvent e) {
+					dispose();
+				}
+			});
 			btnCancel.setBounds(208, 271, 84, 27);
 			AddRouterPane.add(btnCancel);
 		}
 		
-		private String getInterface(){
-			String output = "interface0";
-			//TODO : Interface 설정 하는 과정 필요(NILayer)
-			
-			//TODO : Interface Name 반환
-			return output;
-		}
 		
 		private int getMetric(){
 			int output = 1;
-			//TODO : Metric....반환....
+			//TODO : Metric....반환....<미완료>
 			return output;
 		}
 		
-		private String getFlag(){
+		private String getFlag(boolean up, boolean gateway, boolean host){
 			String output = "";
-			// TODO : Flag 확인해서 String으로 변환해서 return
+			// TODO : Flag 확인해서 String으로 변환해서 return<완료>
+			if(up) {
+				output += "U";
+			}
+			if(gateway){
+				output += "G";
+			}
+			if(host){
+				output += "H";
+			}
 			
 			return output;
-		}
-		
-		private byte[] StringToByte(String input){
-			byte[] output = new byte[4];		//IP 주소는 4byte
-			String[] tmp = input.split("\\.");
-			for(int i = 0 ; i < tmp.length; i++){
-				output[i] = Int2Byte(Integer.parseInt(tmp[i]));
-			}
-			return output;
-		}
-		
-		private byte Int2Byte(int src){
-			byte result = 0;
-			// TODO : IP주소 숫자를 byte 배열에 넣기 위해서 바꾸는 과정이 필요함
-			return result;
 		}
 		
 		private void SetCombobox(JComboBox NICList) {
@@ -359,7 +471,7 @@ public class RouterDlg extends JFrame implements BaseLayer{
 				return;
 			}
 			for (int i = 0; i < m_pAdapterList.size(); i++)
-				NICList.addItem(m_pAdapterList.get(i).getDescription());
+				NICList.addItem("Interface "+(i+1));
 		}
 		
 		
@@ -422,14 +534,97 @@ public class RouterDlg extends JFrame implements BaseLayer{
 			}
 			{
 				JComboBox ProxyInterface = new JComboBox();
-				ProxyInterface.setBounds(173, 144, 130, 24);
+				ProxyInterface.setBounds(173, 144, 194, 24);
 				ProxyAddPanel.add(ProxyInterface);
 			}
 		}
 
 	}
+	
+	public void ARPTableUpdate(byte[] IPAddr, byte[] MACAddr, boolean status, int interfaceNum){
+		String strIP = ipToString(IPAddr);
+		String strMac = status ? macToString(MACAddr) : "???????????";
+		String strStatus = status ? "Complete" : "Incomplete";
+		String inter = "Interface " + interfaceNum;
+		// loop 돌면서 존재하는 지 확인
+		boolean flag = false;
+		for(int i = 0; i < ARPCacheTable.getRowCount(); i++){
+			// 존재한다면
+			if(strIP.equals(ARPCacheModel.getValueAt(i, 0))){
+				// 내용 업데이트
+				ARPCacheModel.setValueAt(strMac, i, 1);
+				ARPCacheModel.setValueAt(inter, i, 2);
+				ARPCacheModel.setValueAt(strStatus, i, 3);
+				flag = true;
+			}
+			
+		}
+		// 존재하지 않는다면
+		if(!flag)
+			ARPCacheModel.addRow(new Object[]{strIP,strMac,inter, strStatus});
+		
+	}
 
+	// DeleteARP
+	public boolean DeleteARP(int index){
+		// ARP Layer에서 해당 index의 ARP Cache를 제거
+		arpTable.ArpCacheTable.remove(index);
+		// GUI Update
+		ARPCacheModel.removeRow(index);
+		return true;
+	}
+	// byte[]의 IP주소를 String으로 반환(000.000.000.000)의 형태
+	public static String ipToString(byte[] ipAddr) {
+		String ipStr = new String();
+		for (int i = 0 ; i < 4; i++) {
+			// 중간에는 .으로 구분함
+			if(i != 3) {
+				ipStr += (int)(ipAddr[i] & 0xFF);
+				ipStr += ".";
+			}
+			else {
+				ipStr += ipAddr[i] & 0xFF;
+			}
+		}
+		return ipStr;
+	}
+	// String의 IP주소를 byte[]로 변환
+	public byte[] StringToIP(String ipAddr){
+		byte[] buf = new byte[4];
+		String[] temp = ipAddr.split("\\.");
+		for(int i = 0; i < 4; i++){
+			buf[i] = (byte)Integer.parseInt(temp[i]);
+		}
+		
+		return buf;
+	}
+	
+	// byte[]의 MAC 주소를 String으로 변환(FF:FF:FF:FF:FF:FF)의 형태
+	public static String macToString(byte[] macAddr) {
+		String macStr = "";
+		for(int i = 0 ; i < 6; i++){
+			macStr += String.format("%02X", macAddr[i] & 0xFF).toUpperCase();
+			//macStr += Integer.toHexString(macAddr[i] & 0xFF).toUpperCase();
+			if(i != 5) {
+				macStr += ":";
+			}
 
+		}
+		return macStr;
+	}
+	// String MAC 주소를 byte[]로 변환
+	public byte[] StringToMAC(String macAddr){
+		byte[] buf = new byte[6];
+		String[] temp = macAddr.split(":");
+		for(int i = 0 ; i < 6 ; i++){
+			int hex = Integer.parseUnsignedInt(temp[i], 16);
+			buf[i] = (byte)hex;
+		}
+		return buf;
+	}
+
+	
+	// Layer 관련 함수
     @Override
     public void SetUnderLayer(BaseLayer pUnderLayer) {
         // TODO Auto-generated method stub

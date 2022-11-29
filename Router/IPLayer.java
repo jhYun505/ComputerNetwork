@@ -1,27 +1,20 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 
 public class IPLayer implements BaseLayer {
 	public int nUpperLayerCount = 0;
 	public String pLayerName = null;
 	public BaseLayer p_UnderLayer = null;
 	public ArrayList<BaseLayer> p_aUpperLayer = new ArrayList<BaseLayer>();
+	public IPLayer otherIP;
+	public RoutingTable RT_Table;
+	
+	public void setRT_Table(RoutingTable RT_Table) {
+		this.RT_Table = RT_Table;
+	}
 
-	private class _IP_ADDR {
-		private byte[] addr = new byte[4];
-
-		public _IP_ADDR() {
-			this.addr[0] = (byte) 0x00;
-			this.addr[1] = (byte) 0x00;
-			this.addr[2] = (byte) 0x00;
-			this.addr[3] = (byte) 0x00;
-		}
-		
-		public _IP_ADDR(byte[] ipAddress) {
-			this.addr[0] = ipAddress[0];
-			this.addr[1] = ipAddress[1];
-			this.addr[2] = ipAddress[2];
-			this.addr[3] = ipAddress[3];
-		}
+	public void setOtherIP(IPLayer ip) {
+		this.otherIP = ip;
 	}
 
 	class _IP_HEADER {
@@ -33,47 +26,63 @@ public class IPLayer implements BaseLayer {
 		byte ip_ttl; // time to live in gateway hops (1byte)
 		byte ip_proto; // IP protocol (1byte)
 		byte[] ip_cksum; // header checksum (2byte)
-		_IP_ADDR ip_src; // IP address of source (4byte)
-		_IP_ADDR ip_dst; // IP address of destination (4byte)
+		byte[] ip_src; // IP address of source (4byte)
+		byte[] ip_dst; // IP address of destination (4byte)
 		byte[] ip_data; // variable length data
 
 
 		public _IP_HEADER() {
-			this.ip_src = new _IP_ADDR();
-			this.ip_dst = new _IP_ADDR();
-			this.ip_verlen = (byte) 4;
-			this.ip_tos = (byte)0x00;
+			this.ip_src = new byte[4];
+			this.ip_dst = new byte[4];
+			this.ip_verlen = (byte)4;
+			this.ip_tos = (byte)0;
 			this.ip_len = new byte[2];
 			this.ip_id = new byte[2];
 			this.ip_fragoff = new byte[2];
-			this.ip_ttl = (byte)0x00;
-			this.ip_proto = (byte)0x00;
+			this.ip_ttl = (byte)64;
+			this.ip_proto = (byte)0;
 			this.ip_cksum = new byte[2];
 
 		}
 
-
-		public _IP_ADDR getIp_src() {
+		public byte[] getIp_src() {
 			return ip_src;
 		}
 
-
 		public void setIp_src(byte[] ip_src) {
-			this.ip_src = new _IP_ADDR(ip_src);
+			this.ip_src = ip_src;
 		}
 
-
-		public _IP_ADDR getIp_dst() {
+		public byte[] getIp_dst() {
 			return ip_dst;
 		}
 
-
 		public void setIp_dst(byte[] ip_dst) {
-			this.ip_dst = new _IP_ADDR(ip_dst);
+			this.ip_dst = ip_dst;
 		}
 	}
 
 	_IP_HEADER m_sHeader = new _IP_HEADER();
+	
+	public void set_srcIP(byte[] src){
+		this.m_sHeader.setIp_src(src);
+	}
+	
+	public void set_dstIP(byte[] dst){
+		this.m_sHeader.setIp_dst(dst);
+	}
+	
+	public byte[] get_srcIP(){
+		return this.m_sHeader.getIp_src();
+	}
+	public byte[] get_dstIP(){
+		return this.m_sHeader.getIp_dst();
+	}
+	
+	public void setLength(int length){
+        m_sHeader.ip_len[0] = (byte) (length >> 8);
+        m_sHeader.ip_len[1] = (byte) (length);
+    }
 
 	public IPLayer(String pName) {
 		// super(pName);
@@ -82,28 +91,81 @@ public class IPLayer implements BaseLayer {
 		
 	}
 
-	// IP Layer는 ARP와는 단방향 연결이고  ETHERNET과는 양방향 연결입니다.
+
+
+	// 이번 과제에서는 무조건 IP -> ARP로 갑니다.
 	public boolean Send(byte[] input, int length) {
-		// Header 부분에서 설정할 것이 있지만 일단은 생략하는 것으로 하겠습니다.
 		byte[] output = ObjToByte(m_sHeader, input, length);
-		
-		// 연결 여부 확인을 위한 UnderLayer의 이름 출력
-		System.out.println(this.GetUnderLayer().GetLayerName());
-		((ARPLayer)this.GetUnderLayer()).Send(input, length);
-		
-
-		return false;
+		return ((ARPLayer)this.GetUnderLayer()).Send(output, output.length);
 	}
-
+	
+	public boolean Send(byte[] input, int length, byte[] dstIPAddr){
+		((ARPLayer)this.GetUnderLayer()).setDstIP(dstIPAddr);
+		return((ARPLayer)this.GetUnderLayer()).Send(input, input.length, dstIPAddr);
+		
+	}
+	
 	
 
 	public boolean Receive(byte[] input) {
 		
+		byte[] msgSrcIP = Arrays.copyOfRange(input, 12, 16);
+		byte[] msgDstIP = Arrays.copyOfRange(input, 16, 20);
+		//라우터가 목적지인 경우
+		if(Arrays.equals(msgDstIP, m_sHeader.getIp_src())) {
+            m_sHeader.setIp_dst(msgSrcIP);
+            byte[] reply = RemoveIPHeader(input, input.length);
+            if(reply[0] == (byte)0x08){
+            	reply[0] = (byte)0x00;		//reply는 0 request는 8
+            	reply = ObjToByte(m_sHeader, reply, reply.length);
+            	return ((ARPLayer)this.GetUnderLayer()).Send(reply, reply.length, msgSrcIP);
+            }
+		}
+		
+		RoutingTable._ROUTING_ENTRY_ entry = RT_Table.routing(msgDstIP);
+		if (entry == null)
+			return false;
+		
+		// 라우터 엔트리의 정보
+		int interNum = Integer.parseInt(entry.getRT_INTERFACE().split(" ")[1]);
+		String flag = entry.getRT_FLAG();
+		byte[] gateway = entry.getRT_GATEWAY();
+		
+		
+		// 현재 인터페이스 정보
+		int thisInter = (int)this.m_sHeader.getIp_src()[2];
+		// 현재 네트워크 인터페이스 내의 전송
+		if(thisInter == interNum){
+			if(flag.equals("U")) {
+				// 연결되어있으니까 거기로 보낸다
+				((ARPLayer)this.GetUnderLayer()).Send(input, input.length, msgDstIP);
+			}else if(flag.equals("UG")){
+				//Gateway주소로의 전송
+				((ARPLayer)this.GetUnderLayer()).GetUnderLayer().Send(input, input.length);
+			}
+		}
+		// 다른 네트워크로의 전송
+		else {			
+			if(flag.equals("U")) {
+				otherIP.Send(input, input.length, msgDstIP);
+			}else if(flag.equals("UG")){
+				//Gateway주소로의 전송
+				otherIP.Send(input, input.length, gateway);
+			}
+		}
 		return true;
+		
+	}
+	public byte[] RemoveIPHeader(byte[] input, int length) {
+		byte[] data = new byte[length - 20];
+		System.arraycopy(input, 20, data, 0, data.length);
+		return data;
 	}
 	
 	public byte[] ObjToByte(_IP_HEADER header, byte[] input, int length) {
 		byte[] buf = new byte[length + 20];
+		// length setting
+		setLength(input.length + 20);
 		buf[0] = header.ip_verlen;
 		buf[1] = header.ip_tos;
 		buf[2] = header.ip_len[0];
@@ -116,8 +178,8 @@ public class IPLayer implements BaseLayer {
 		buf[9] = header.ip_proto;
 		buf[10] = header.ip_cksum[0];
 		buf[11] = header.ip_cksum[1];
-		System.arraycopy(header.ip_src.addr, 0, buf, 12, 4);
-		System.arraycopy(header.ip_dst.addr, 0, buf, 16, 4);
+		System.arraycopy(header.ip_src, 0, buf, 12, 4);
+		System.arraycopy(header.ip_dst, 0, buf, 16, 4);
 		for(int i = 0; i < length ; i++) {
 			buf[i + 19] = input[i];
 		}
